@@ -122,8 +122,15 @@ jobs:
         with:
           path: artifacts
 
-      - name: Attach artifacts to release
+      - name: Zip each platform build
+        run: |
+          cd artifacts
+          for d in */ ; do
+            zip -r "${d%/}.zip" "$d"
+          done
+
+      - name: Attach zips to release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.release.tag_name }}
-          files: artifacts/**/*
+          files: artifacts/*.zip
