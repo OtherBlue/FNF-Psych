@@ -1,0 +1,55 @@
+name: Publish Release Assets
+
+on:
+  workflow_run:
+    workflows: ["Build"]
+    types: [completed]
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish artifacts to
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    # Only auto-run if the build workflow succeeded
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "tag=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=${{ github.event.workflow_run.head_branch }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download artifacts from build workflow
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          workflow: Build
+          run_id: ${{ github.event.workflow_run.id }}
+          path: artifacts
+
+      - name: Zip each platform build
+        run: |
+          cd artifacts
+          for d in */ ; do
+            platform="${d%Build/}"
+            zip -r "Game-${{ steps.tag.outputs.tag }}-${platform}.zip" "$d"
+          done
+
+      - name: Attach zips to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          files: artifacts/*.zip
